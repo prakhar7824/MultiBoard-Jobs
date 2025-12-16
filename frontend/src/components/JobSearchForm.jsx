@@ -1,5 +1,6 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { cities } from '../data/cities'
+import { getAllCities, addCustomCity, getCustomCities, removeCustomCity } from '../utils/cityStorage'
 import './JobSearchForm.css'
 
 const JOB_BOARDS = [
@@ -52,6 +53,28 @@ function JobSearchForm({ onSearch, loading }) {
   })
 
   const [showAdvanced, setShowAdvanced] = useState(false)
+  
+  // Location search and custom cities state
+  const [locationInput, setLocationInput] = useState('')
+  const [showLocationSuggestions, setShowLocationSuggestions] = useState(false)
+  const [filteredCities, setFilteredCities] = useState([])
+  const [allCities, setAllCities] = useState([])
+  const [showAddCityModal, setShowAddCityModal] = useState(false)
+  const [newCityInput, setNewCityInput] = useState('')
+  const [customCities, setCustomCities] = useState([])
+
+  // Load cities on component mount
+  useEffect(() => {
+    const mergedCities = getAllCities(cities)
+    setAllCities(mergedCities)
+    setCustomCities(getCustomCities())
+    
+    // If formData.location is set initially, update locationInput
+    if (formData.location) {
+      setLocationInput(formData.location)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target
@@ -169,6 +192,87 @@ function JobSearchForm({ onSearch, loading }) {
     return 'Not Set'
   }
 
+  // Handle location input change
+  const handleLocationChange = (e) => {
+    const value = e.target.value
+    setLocationInput(value)
+    
+    if (value.trim() === '') {
+      setFilteredCities([])
+      setShowLocationSuggestions(false)
+      setFormData({ ...formData, location: '' })
+    } else {
+      // Filter cities that match the input
+      const filtered = allCities.filter(city =>
+        city.toLowerCase().includes(value.toLowerCase())
+      )
+      setFilteredCities(filtered.slice(0, 10)) // Show max 10 suggestions
+      setShowLocationSuggestions(filtered.length > 0)
+    }
+  }
+
+  const handleLocationSelect = (city) => {
+    setLocationInput(city)
+    setFormData({ ...formData, location: city })
+    setShowLocationSuggestions(false)
+    setFilteredCities([])
+  }
+
+  const handleLocationBlur = () => {
+    // Delay hiding suggestions to allow click events
+    setTimeout(() => {
+      setShowLocationSuggestions(false)
+    }, 200)
+  }
+
+  // Handle adding custom city
+  const handleAddCustomCity = () => {
+    if (newCityInput.trim() === '') {
+      alert('Please enter a city name')
+      return
+    }
+
+    const cityName = newCityInput.trim()
+    // Add ", India" suffix if not present and it's not already a formatted city
+    const formattedCity = cityName.includes(',') 
+      ? cityName 
+      : `${cityName}, India`
+    
+    const success = addCustomCity(formattedCity)
+    
+    if (success) {
+      // Update cities list
+      const updatedCities = getAllCities(cities)
+      setAllCities(updatedCities)
+      setCustomCities(getCustomCities())
+      
+      // Set the new city as selected
+      setLocationInput(formattedCity)
+      setFormData({ ...formData, location: formattedCity })
+      setNewCityInput('')
+      setShowAddCityModal(false)
+      alert(`"${formattedCity}" has been added to your cities list!`)
+    } else {
+      alert(`"${formattedCity}" already exists in the list!`)
+    }
+  }
+
+  // Handle removing custom city
+  const handleRemoveCustomCity = (city) => {
+    if (window.confirm(`Remove "${city}" from your custom cities?`)) {
+      removeCustomCity(city)
+      const updatedCities = getAllCities(cities)
+      setAllCities(updatedCities)
+      setCustomCities(getCustomCities())
+      
+      // Clear location if it was the removed city
+      if (formData.location === city) {
+        setLocationInput('')
+        setFormData({ ...formData, location: '' })
+      }
+    }
+  }
+
   return (
     <form onSubmit={handleSubmit} className="job-search-form">
       <div className="form-section">
@@ -187,19 +291,76 @@ function JobSearchForm({ onSearch, loading }) {
           />
         </div>
 
-        <div className="form-group">
-          <label htmlFor="location">Location</label>
-          <select
-            id="location"
-            name="location"
-            value={formData.location}
-            onChange={handleChange}
-          >
-            <option value="">Select a city...</option>
-            {cities.map(city => (
-              <option key={city} value={city}>{city}</option>
-            ))}
-          </select>
+        <div className="form-group location-group">
+          <label htmlFor="location">
+            Location
+            <button
+              type="button"
+              className="add-city-btn"
+              onClick={() => setShowAddCityModal(true)}
+              title="Add custom Indian city"
+            >
+              + Add City
+            </button>
+          </label>
+          <div className="location-input-wrapper">
+            <input
+              type="text"
+              id="location"
+              name="location"
+              value={locationInput}
+              onChange={handleLocationChange}
+              onFocus={() => {
+                if (locationInput.trim() !== '') {
+                  const filtered = allCities.filter(city =>
+                    city.toLowerCase().includes(locationInput.toLowerCase())
+                  )
+                  setFilteredCities(filtered.slice(0, 10))
+                  setShowLocationSuggestions(filtered.length > 0)
+                }
+              }}
+              onBlur={handleLocationBlur}
+              placeholder="Type to search cities or enter custom city..."
+              autoComplete="off"
+            />
+            {showLocationSuggestions && filteredCities.length > 0 && (
+              <div className="location-suggestions">
+                {filteredCities.map(city => {
+                  const isCustom = customCities.includes(city)
+                  return (
+                    <div
+                      key={city}
+                      className={`location-suggestion-item ${isCustom ? 'custom-city' : ''}`}
+                      onClick={() => handleLocationSelect(city)}
+                      onMouseDown={(e) => e.preventDefault()}
+                    >
+                      <span>{city}</span>
+                      {isCustom && (
+                        <button
+                          type="button"
+                          className="remove-city-btn"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            handleRemoveCustomCity(city)
+                          }}
+                          title="Remove custom city"
+                        >
+                          ×
+                        </button>
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+          </div>
+
+          {/* Custom Cities List */}
+          {customCities.length > 0 && (
+            <div className="custom-cities-list">
+              <small>Your custom cities: {customCities.join(', ')}</small>
+            </div>
+          )}
         </div>
 
         <div className="form-group">
@@ -420,6 +581,46 @@ function JobSearchForm({ onSearch, loading }) {
       <button type="submit" className="submit-btn" disabled={loading}>
         {loading ? 'Searching...' : '🔍 Search Jobs'}
       </button>
+
+      {/* Add City Modal */}
+      {showAddCityModal && (
+        <div className="modal-overlay" onClick={() => setShowAddCityModal(false)}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+            <h3>Add Custom Indian City</h3>
+            <input
+              type="text"
+              value={newCityInput}
+              onChange={(e) => setNewCityInput(e.target.value)}
+              placeholder="Enter city name (e.g., Mysore or Mysore, India)"
+              onKeyPress={(e) => {
+                if (e.key === 'Enter') {
+                  handleAddCustomCity()
+                }
+              }}
+              autoFocus
+            />
+            <div className="modal-actions">
+              <button
+                type="button"
+                onClick={handleAddCustomCity}
+                className="btn-primary"
+              >
+                Add City
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowAddCityModal(false)
+                  setNewCityInput('')
+                }}
+                className="btn-secondary"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </form>
   )
 }
