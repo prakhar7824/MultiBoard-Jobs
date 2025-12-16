@@ -43,7 +43,7 @@ function App() {
   return (
     <div className="app">
       <header className="app-header">
-        <h1>🔍 FindJobs2</h1>
+        <h1>🔍 MultiBoard Jobs</h1>
         <p>Search jobs from multiple job boards</p>
       </header>
 

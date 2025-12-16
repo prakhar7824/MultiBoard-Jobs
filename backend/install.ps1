@@ -1,8 +1,8 @@
-# Installation script for LinkedIn Job Scraper Backend
+# Installation script for MultiBoard Jobs Backend
 # Run this script in PowerShell from the backend directory
 
 Write-Host "========================================" -ForegroundColor Cyan
-Write-Host "Installing LinkedIn Job Scraper Backend" -ForegroundColor Cyan
+Write-Host "Installing MultiBoard Jobs Backend" -ForegroundColor Cyan
 Write-Host "========================================" -ForegroundColor Cyan
 Write-Host ""
 

@@ -1,12 +1,12 @@
-# FindJobs2
+# MultiBoard Jobs
 
-A LinkedIn job scraper backend API built with FastAPI and JobSpy library.
+A multi-board job scraper application with backend API and frontend interface, built with FastAPI, React, and JobSpy library.
 
 ## Backend
 
 ### Overview
 
-The backend is a FastAPI-based REST API that scrapes LinkedIn job listings using the JobSpy Python library. It provides endpoints to search for jobs based on keywords, location, and other filters.
+The backend is a FastAPI-based REST API that scrapes job listings from multiple job boards (LinkedIn, Indeed, Glassdoor, ZipRecruiter, Google Jobs, Bayt, BDJobs) using the JobSpy Python library. It provides endpoints to search for jobs based on keywords, location, and other filters.
 
 ### Prerequisites
 
@@ -71,11 +71,11 @@ You should see output indicating the server is running. The API will be availabl
 
 #### 2. Scrape Jobs (GET)
 - **URL**: `GET /scrape_jobs`
-- **Description**: Scrapes LinkedIn jobs using query parameters
+- **Description**: Scrapes jobs from multiple job boards using query parameters
 
 #### 3. Scrape Jobs (POST)
 - **URL**: `POST /scrape_jobs`
-- **Description**: Scrapes LinkedIn jobs using JSON request body
+- **Description**: Scrapes jobs from multiple job boards using JSON request body
 
 #### 4. Health Check
 - **URL**: `GET /health`
@@ -250,14 +250,15 @@ pip install beautifulsoup4 markdownify regex requests tls-client
 ### Important Notes
 
 ⚠️ **Legal and Ethical Compliance**: 
-- Scraping LinkedIn data may violate their Terms of Service
+- Scraping job board data may violate their Terms of Service
 - Ensure you have necessary permissions and comply with all legal guidelines
 - Use responsibly and respect rate limits
 
 ⚠️ **Technical Considerations**:
-- LinkedIn uses dynamic content loading and anti-scraping mechanisms
+- Job boards use dynamic content loading and anti-scraping mechanisms
 - JobSpy handles many challenges, but scraping may occasionally fail
-- Be aware that LinkedIn's HTML structure may change, breaking the scraper
+- Be aware that job board HTML structures may change, breaking the scraper
+- Some job boards (like BDJobs) may have compatibility limitations
 - Consider implementing retry logic and error handling in production
 
 ### License

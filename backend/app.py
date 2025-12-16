@@ -20,7 +20,7 @@ except ImportError:
     raise
 
 app = FastAPI(
-    title="Job Scraper API",
+    title="MultiBoard Jobs API",
     description="API for scraping jobs from multiple job boards using JobSpy library",
     version="1.0.0"
 )
@@ -60,7 +60,7 @@ class JobSearchRequest(BaseModel):
 async def root():
     """Root endpoint with API information"""
     return {
-        "message": "LinkedIn Job Scraper API",
+        "message": "MultiBoard Jobs API",
         "endpoints": {
             "scrape_jobs": "/scrape_jobs?search_term=<term>&location=<location>&results_wanted=<number>",
             "docs": "/docs"
@@ -76,11 +76,12 @@ def _scrape_jobs_logic(request: JobSearchRequest):
     scrape_params = {}
     
     # Convert site_name to list if it's a string
+    site_names = []
     if request.site_name:
         if isinstance(request.site_name, str):
-            scrape_params['site_name'] = [request.site_name]
+            site_names = [request.site_name]
         else:
-            scrape_params['site_name'] = request.site_name
+            site_names = request.site_name.copy()
     
     # Required parameter
     scrape_params['search_term'] = request.search_term
@@ -108,13 +109,52 @@ def _scrape_jobs_logic(request: JobSearchRequest):
         if value is not None:
             scrape_params[key] = value
     
-    # Scrape jobs using JobSpy (this is a blocking call)
-    jobs_df = scrape_jobs(**scrape_params)
+    # Handle BDJobs compatibility issue - it doesn't support user_agent parameter
+    # Try with all sites first, if BDJobs fails, retry without it
+    jobs_df = None
+    original_sites = site_names.copy() if site_names else ['linkedin']
     
-    logger.info(f"Scraped {len(jobs_df)} jobs")
+    try:
+        scrape_params['site_name'] = site_names if site_names else ['linkedin']
+        jobs_df = scrape_jobs(**scrape_params)
+    except TypeError as e:
+        error_msg = str(e)
+        # Check if error is related to BDJobs and user_agent
+        if 'bdjobs' in str(e).lower() or 'user_agent' in str(e).lower():
+            logger.warning(f"BDJobs compatibility issue detected: {error_msg}")
+            logger.info("Retrying without BDJobs...")
+            
+            # Remove BDJobs from site list and retry
+            filtered_sites = [s for s in original_sites if s.lower() != 'bdjobs']
+            
+            if not filtered_sites:
+                # If BDJobs was the only site, default to LinkedIn
+                filtered_sites = ['linkedin']
+                logger.warning("BDJobs was the only selected site, defaulting to LinkedIn")
+            
+            scrape_params['site_name'] = filtered_sites
+            
+            try:
+                jobs_df = scrape_jobs(**scrape_params)
+                logger.info(f"Successfully scraped from {filtered_sites} (BDJobs excluded due to compatibility)")
+            except Exception as retry_error:
+                error_msg = f"Error scraping jobs after retry: {str(retry_error)}"
+                logger.error(error_msg)
+                raise Exception(error_msg)
+        else:
+            # Re-raise if it's a different error
+            raise
+    except Exception as e:
+        # Re-raise to be handled by the endpoint
+        raise
+    
+    if jobs_df is None or jobs_df.empty:
+        logger.warning("No jobs found or jobs_df is None")
+    else:
+        logger.info(f"Scraped {len(jobs_df)} jobs")
     
     # Check if any jobs were found
-    if jobs_df.empty:
+    if jobs_df is None or jobs_df.empty:
         return JSONResponse(
             status_code=200,
             content={
@@ -191,7 +231,7 @@ async def scrape_jobs_post(request: JobSearchRequest):
 @app.get("/health")
 async def health_check():
     """Health check endpoint"""
-    return {"status": "healthy", "service": "LinkedIn Job Scraper API"}
+    return {"status": "healthy", "service": "MultiBoard Jobs API"}
 
 
 if __name__ == "__main__":

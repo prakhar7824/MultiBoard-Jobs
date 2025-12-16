@@ -1,6 +1,6 @@
-# FindJobs2 Frontend
+# MultiBoard Jobs Frontend
 
-A modern React-based frontend for the FindJobs2 job scraper application.
+A modern React-based frontend for the MultiBoard Jobs job scraper application.
 
 ## Features
 
