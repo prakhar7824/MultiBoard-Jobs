@@ -14,7 +14,7 @@ cd backend
 
 # Install core web framework packages
 echo "  → Installing core web framework packages..."
-pip install fastapi>=0.116.0 "uvicorn[standard]>=0.35.0" pydantic>=2.11.0
+pip install fastapi>=0.116.0 "uvicorn[standard]>=0.35.0" pydantic>=2.11.0 mangum>=0.17.0
 
 # Install data processing packages
 echo "  → Installing data processing packages..."

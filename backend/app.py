@@ -238,6 +238,11 @@ if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)
 
-# Vercel serverless handler
-handler = app
+# Vercel serverless handler using Mangum
+try:
+    from mangum import Mangum
+    handler = Mangum(app, lifespan="off")
+except ImportError:
+    # Fallback if mangum is not installed (for local development)
+    handler = app
 
