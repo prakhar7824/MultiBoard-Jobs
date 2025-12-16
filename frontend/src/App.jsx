@@ -3,7 +3,11 @@ import JobSearchForm from './components/JobSearchForm'
 import JobResults from './components/JobResults'
 import './App.css'
 
-const API_BASE_URL = 'http://localhost:8000'
+// Use environment variable or fallback to localhost for development
+// In production (Vercel), use relative /api path
+const API_BASE_URL = import.meta.env.PROD 
+  ? '/api'  // Production: use relative path to Vercel serverless function
+  : (import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000')  // Development: use localhost or env var
 
 function App() {
   const [jobs, setJobs] = useState([])
