@@ -3,8 +3,9 @@ FastAPI backend server for LinkedIn job scraping using JobSpy
 """
 from fastapi import FastAPI, HTTPException, Query, Body
 from fastapi.responses import JSONResponse
-from typing import Optional
-from pydantic import BaseModel
+from fastapi.middleware.cors import CORSMiddleware
+from typing import Optional, List, Union
+from pydantic import BaseModel, Field
 import pandas as pd
 import logging
 
@@ -19,17 +20,40 @@ except ImportError:
     raise
 
 app = FastAPI(
-    title="LinkedIn Job Scraper API",
-    description="API for scraping LinkedIn jobs using JobSpy library",
+    title="Job Scraper API",
+    description="API for scraping jobs from multiple job boards using JobSpy library",
     version="1.0.0"
 )
 
+# Add CORS middleware to allow frontend requests
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # Allow all origins for development
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
-# Pydantic model for POST request body
+
+# Pydantic model for POST request body with all JobSpy parameters
 class JobSearchRequest(BaseModel):
-    search_term: str
-    location: Optional[str] = None
-    results_wanted: int = 10
+    site_name: Optional[Union[List[str], str]] = Field(default=['linkedin'], description="Job boards: linkedin, zip_recruiter, indeed, glassdoor, google, bayt, bdjobs")
+    search_term: str = Field(..., description="Job title or keywords to search for")
+    google_search_term: Optional[str] = Field(None, description="Search term for Google jobs (only param for filtering Google jobs)")
+    location: Optional[str] = Field(None, description="Job location")
+    distance: Optional[int] = Field(50, ge=1, description="Distance in miles (default: 50)")
+    job_type: Optional[str] = Field(None, description="Job type: fulltime, parttime, internship, contract")
+    is_remote: Optional[bool] = Field(None, description="Filter for remote jobs")
+    results_wanted: Optional[int] = Field(10, ge=1, description="Number of job results to retrieve")
+    easy_apply: Optional[bool] = Field(None, description="Filter for jobs hosted on job board site")
+    description_format: Optional[str] = Field("markdown", description="Format: markdown or html")
+    offset: Optional[int] = Field(None, ge=0, description="Start search from offset (e.g., 25 starts from 25th result)")
+    hours_old: Optional[int] = Field(None, ge=0, description="Filter jobs by hours since posted")
+    verbose: Optional[int] = Field(2, ge=0, le=2, description="Verbosity: 0=errors only, 1=errors+warnings, 2=all logs")
+    linkedin_fetch_description: Optional[bool] = Field(True, description="Fetch full description for LinkedIn")
+    linkedin_company_ids: Optional[List[int]] = Field(None, description="Search LinkedIn jobs with specific company IDs")
+    country_indeed: Optional[str] = Field(None, description="Filter country on Indeed & Glassdoor")
+    enforce_annual_salary: Optional[bool] = Field(None, description="Convert wages to annual salary")
 
 
 @app.get("/")
@@ -44,21 +68,45 @@ async def root():
     }
 
 
-def _scrape_jobs_logic(search_term: str, location: Optional[str], results_wanted: int):
-    """Shared logic for scraping jobs"""
-    logger.info(f"Scraping jobs for: search_term='{search_term}', location='{location}', results_wanted={results_wanted}")
+def _scrape_jobs_logic(request: JobSearchRequest):
+    """Shared logic for scraping jobs with all JobSpy parameters"""
+    logger.info(f"Scraping jobs with parameters: {request.dict(exclude_none=True)}")
     
-    # Prepare parameters for JobSpy
-    scrape_params = {
-        'site_name': ['linkedin'],
-        'search_term': search_term,
-        'results_wanted': results_wanted,
-        'linkedin_fetch_description': True
+    # Prepare parameters for JobSpy - only include non-None values
+    scrape_params = {}
+    
+    # Convert site_name to list if it's a string
+    if request.site_name:
+        if isinstance(request.site_name, str):
+            scrape_params['site_name'] = [request.site_name]
+        else:
+            scrape_params['site_name'] = request.site_name
+    
+    # Required parameter
+    scrape_params['search_term'] = request.search_term
+    
+    # Optional parameters - only add if not None
+    optional_params = {
+        'google_search_term': request.google_search_term,
+        'location': request.location,
+        'distance': request.distance,
+        'job_type': request.job_type,
+        'is_remote': request.is_remote,
+        'results_wanted': request.results_wanted,
+        'easy_apply': request.easy_apply,
+        'description_format': request.description_format,
+        'offset': request.offset,
+        'hours_old': request.hours_old,
+        'verbose': request.verbose,
+        'linkedin_fetch_description': request.linkedin_fetch_description,
+        'linkedin_company_ids': request.linkedin_company_ids,
+        'country_indeed': request.country_indeed,
+        'enforce_annual_salary': request.enforce_annual_salary,
     }
     
-    # Add location if provided
-    if location:
-        scrape_params['location'] = location
+    for key, value in optional_params.items():
+        if value is not None:
+            scrape_params[key] = value
     
     # Scrape jobs using JobSpy (this is a blocking call)
     jobs_df = scrape_jobs(**scrape_params)
@@ -100,22 +148,22 @@ def _scrape_jobs_logic(search_term: str, location: Optional[str], results_wanted
 @app.get("/scrape_jobs")
 async def scrape_jobs_get(
     search_term: str = Query(..., description="Job search term (e.g., 'software engineer', 'data scientist')"),
+    site_name: Optional[str] = Query(None, description="Job board: linkedin, zip_recruiter, indeed, glassdoor, google, bayt, bdjobs"),
     location: Optional[str] = Query(None, description="Job location (e.g., 'San Francisco', 'New York')"),
-    results_wanted: int = Query(10, ge=1, le=100, description="Number of results to return (1-100)")
+    results_wanted: int = Query(10, ge=1, description="Number of results to return")
 ):
     """
-    Scrape LinkedIn jobs based on search criteria (GET method with query parameters)
-    
-    Args:
-        search_term: The job title or keywords to search for
-        location: Optional location filter
-        results_wanted: Number of job results to return (default: 10, max: 100)
-    
-    Returns:
-        JSON array of job listings
+    Scrape jobs based on search criteria (GET method with query parameters)
     """
     try:
-        return _scrape_jobs_logic(search_term, location, results_wanted)
+        # Create request object from query parameters
+        request = JobSearchRequest(
+            search_term=search_term,
+            site_name=[site_name] if site_name else ['linkedin'],
+            location=location,
+            results_wanted=results_wanted
+        )
+        return _scrape_jobs_logic(request)
     except Exception as e:
         raise HTTPException(
             status_code=500,
@@ -126,20 +174,11 @@ async def scrape_jobs_get(
 @app.post("/scrape_jobs")
 async def scrape_jobs_post(request: JobSearchRequest):
     """
-    Scrape LinkedIn jobs based on search criteria (POST method with JSON body)
-    
-    Request body:
-        - search_term: The job title or keywords to search for (required)
-        - location: Optional location filter
-        - results_wanted: Number of job results to return (default: 10, max: 100)
-    
-    Returns:
-        JSON array of job listings
+    Scrape jobs based on search criteria (POST method with JSON body)
+    Supports all JobSpy parameters for advanced filtering
     """
     try:
-        if request.results_wanted < 1 or request.results_wanted > 100:
-            raise HTTPException(status_code=400, detail="results_wanted must be between 1 and 100")
-        return _scrape_jobs_logic(request.search_term, request.location, request.results_wanted)
+        return _scrape_jobs_logic(request)
     except HTTPException:
         raise
     except Exception as e:
