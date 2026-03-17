@@ -1,4 +1,19 @@
-# This file is a placeholder for Vercel to detect Python
-# Actual installation is handled by install.sh
-fastapi
+# Core Web Framework
+fastapi>=0.116.0
+uvicorn[standard]>=0.35.0
+pydantic>=2.11.0
 
+# Data Processing
+pandas>=2.3.0
+numpy>=2.3.0
+
+# JobSpy
+python-jobspy
+
+# JobSpy Dependencies
+beautifulsoup4>=4.13.0
+lxml>=6.0.0
+requests>=2.31.0
+markdownify>=0.13.1
+regex>=2024.4.28
+tls-client>=1.0.0
