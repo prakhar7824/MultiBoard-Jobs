@@ -4,7 +4,7 @@ import JobResults from './components/JobResults'
 import './App.css'
 
 // Use Render backend by default, allow override via env
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://multiboard-jobs.onrender.com'
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://multiboard-jobs-1.onrender.com'
 
 function App() {
   const [jobs, setJobs] = useState([])
