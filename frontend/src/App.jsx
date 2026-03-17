@@ -57,18 +57,30 @@ function App() {
       // Parse successful response
       if (!isJson) {
         const text = await response.text()
-        throw new Error(`Expected JSON but got: ${text.substring(0, 100)}`)
+        throw new Error(`Server returned non-JSON response: ${text.substring(0, 160)}`)
       }
 
-      const data = await response.json()
+      // Some hosts may incorrectly label HTML error pages as JSON.
+      // Read as text first, then safely parse JSON.
+      const rawBody = await response.text()
+      let data
+      try {
+        data = JSON.parse(rawBody)
+      } catch (parseErr) {
+        throw new Error('Server returned an invalid response (not valid JSON). This is likely a temporary server error; please try again.')
+      }
       setJobs(data.jobs || [])
     } catch (err) {
       // Handle network errors, timeouts, etc.
       let errorMessage = err.message
       if (err.name === 'TypeError' && err.message.includes('fetch')) {
         errorMessage = 'Network error: Could not connect to the server. Please check your connection.'
-      } else if (err.message.includes('timeout') || err.message.includes('Unexpected token')) {
-        errorMessage = 'Request timed out or received invalid response. The job search may take too long, or there may be a server configuration issue. Try reducing the number of results or job boards.'
+      } else if (
+        err.message.includes('timeout') ||
+        err.message.includes('Unexpected token') ||
+        err.message.toLowerCase().includes('invalid response')
+      ) {
+        errorMessage = 'The server returned an invalid or partial response. This is usually a temporary issue; try again or reduce the number of job boards / results.'
       }
       setError(errorMessage)
       setJobs([])
